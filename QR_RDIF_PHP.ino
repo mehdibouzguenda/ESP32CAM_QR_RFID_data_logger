@@ -9,13 +9,12 @@
 **DATE: - Started 02/06/2023
        
 
-**BUGS: -  I am currently in the process of optimizing this program, 
-          but there is still an outstanding issue with the RFID functionality. 
-          While it is currently working, it is not performing as expected and requires further attention.
+**BUGS: -  I am currently in the process of optimizing this program!
 
-**DESCRIPTION:
-    - This program incorporates a key library that has been sourced from GitHub.
-      * https://github.com/alvarowolfx/ESP32QRCodeReader
+
+**DESCRIPTION - This program incorporates two primary libraries that were sourced from GitHub. (MODIFIED)
+    * https://github.com/alvarowolfx/ESP32QRCodeReader
+    * https://github.com/arduino12/rdm6300 (NEW LIBRARY )
     - Also We need to add esp to our Arduino IDE(the editor that i used).
       1- Open up your IDE then go to “File -> Preferences” or simply hit “Ctrl + comma”
       2- Paste https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json  in additional board manager URLs.
@@ -25,20 +24,16 @@
     (I tested this program by running it on a local server using XAMPP.)
     - create database name: “QR_RFID_DATA_LOG”
     - import the database QR_RFID_DATA_LOG.sql
-    -While uploading, I encountered an issue with the SoftwareSerial library. To resolve this, 
-     I installed the ESP SoftwareSerial library, which can be found in the 'lib' folder of this repository.
-
 *******************************************************/
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ESP32QRCodeReader.h>
-#include <SoftwareSerial.h>
+#include <rdm6300.h>
 
-
-const char *ssid = "WIFI VDSL PRO";      //WIFI NAME OR HOTSPOT //Orange-E58F
-const char *password = "Eventizer2023";  //WIFI PASSWORD POR MOBILE HOTSPOT PASSWORD//L2RhgnaDTDn
+const char *ssid = "Orange-E58F";      //WIFI NAME OR HOTSPOT //Orange-E58F
+const char *password = "L2RhgnaDTDn";  //WIFI PASSWORD POR MOBILE HOTSPOT PASSWORD//L2RhgnaDTDn
 
 
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
@@ -46,10 +41,9 @@ struct QRCodeData qrCodeData;
 bool isConnected = false;
 
 
+#define RDM6300_RX_PIN 13  // read the SoftwareSerial doc above! may need to change this pin ...
+Rdm6300 rdm6300;
 
-SoftwareSerial RFID(14, 15);  // RX and TX
-
-String text;
 
 //indicators
 #define ERROR_PIN 12
@@ -86,9 +80,9 @@ void setup() {
   Serial.println("Begin QR Code reader");
 
   delay(1000);
+  rdm6300.begin(RDM6300_RX_PIN);
 
-  RFID.begin(115200);
-  Serial.println("Bring your RFID Card Closer...");
+  Serial.println("\nPlace RFID tag near the rdm6300...");
 }
 
 void sendLog(String cardid) {
@@ -123,32 +117,28 @@ void toggleConnStat() {
     digitalWrite(CONN_PIN, LOW);
   }
 }
-char c;
+
 void loop() {
-  while (RFID.available() > 0) {
-    delay(5);
-    c = RFID.read();
-    text += c;
-    Serial.println("text");
-  }
-  if (text.length() > 20) {
-    text = text.substring(1, 11);
-    Serial.println("Card ID : " + text);
-    sendLog(text);
+
+	if (rdm6300.get_new_tag_id()){
+    Serial.println(rdm6300.get_tag_id(), HEX);
+    delay(1000);
+    //sendLog(rdm6300.get_tag_id());
   }
   if (reader.receiveQrCode(&qrCodeData, 100)) {
     Serial.println("Found QRCode");
     if (qrCodeData.valid) {
       Serial.print("Payload: ");
       Serial.println((const char *)qrCodeData.payload);
-      sendLog((const char *)qrCodeData.payload);
+      delay(1000);
+      //sendLog((const char *)qrCodeData.payload);
     } else {
       Serial.print("Invalid: ");
       Serial.println((const char *)qrCodeData.payload);
     }
   }
   toggleConnStat();
-  delay(1000);
+  delay(100);
 
   digitalWrite(SUCCESS_PIN, LOW);
   digitalWrite(ERROR_PIN, LOW);
